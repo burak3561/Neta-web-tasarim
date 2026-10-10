@@ -3,7 +3,7 @@ const menuButton = document.querySelector(".menu-button");
 const mobileNav = document.querySelector(".mobile-nav");
 
 const updateHeader = () => {
-    header.classList.toggle("is-sticky", window.scrollY > 34);
+    if (header) header.classList.toggle("is-sticky", window.scrollY > 34);
 };
 
 updateHeader();
@@ -41,7 +41,13 @@ mobileNav?.querySelectorAll("a").forEach((link) => {
     });
 });
 
-const observer = new IntersectionObserver(
+const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+const onMotionChange = (callback) => {
+    if (motion.addEventListener) motion.addEventListener("change", callback);
+    else motion.addListener(callback);
+};
+
+const observer = "IntersectionObserver" in window ? new IntersectionObserver(
     (entries) => {
         entries.forEach((entry) => {
             if (!entry.isIntersecting) return;
@@ -50,45 +56,81 @@ const observer = new IntersectionObserver(
         });
     },
     { threshold: 0.12 }
-);
+) : null;
 
 document.querySelectorAll(".reveal").forEach((element, index) => {
     element.style.transitionDelay = `${Math.min(index % 4, 3) * 80}ms`;
-    observer.observe(element);
+    if (observer) {
+        element.classList.add("reveal--pending");
+        observer.observe(element);
+    } else element.classList.add("is-visible");
 });
 
 const clips = [...document.querySelectorAll(".hero__clip")];
 if (clips.length) {
     let clipIndex = 0;
+    let clipTimer = 0;
     clips.forEach((clip) => {
         clip.muted = true;
+        clip.defaultMuted = true;
         clip.playsInline = true;
-    });
-    const showClip = (index) => {
-        clips.forEach((clip, clipNumber) => {
-            const active = clipNumber === index;
-            clip.classList.toggle("is-on", active);
-            if (active) {
-                clip.currentTime = 0;
-                clip.play().catch(() => {});
-            } else {
-                clip.pause();
-            }
+        clip.addEventListener("playing", () => {
+            if (clips[clipIndex] === clip && !motion.matches && !document.hidden) {
+                clip.classList.add("is-on");
+            } else clip.pause();
         });
+        clip.addEventListener("error", () => clip.classList.remove("is-on"));
+    });
+    const playClip = () => {
+        const clip = clips[clipIndex];
+        if (motion.matches || document.hidden) return;
+        // A synchronous media error must not prevent the text, map or scroll effects.
+        try {
+            const playback = clip.play();
+            if (playback && playback.catch) playback.catch(() => clip.classList.remove("is-on"));
+        } catch (error) {
+            clip.classList.remove("is-on");
+        }
     };
-    showClip(0);
-    window.setInterval(() => {
+    const showClip = () => {
+        window.clearTimeout(clipTimer);
+        clips.forEach((clip) => {
+            clip.classList.remove("is-on");
+            clip.pause();
+        });
+        if (motion.matches || document.hidden) return;
+        const clip = clips[clipIndex];
+        // Safari may reject seeking before metadata/seekable ranges are available.
+        if (clip.readyState >= 1 && clip.seekable.length) {
+            try { clip.currentTime = 0; } catch (error) { /* Keep the current frame. */ }
+        }
+        playClip();
+        clipTimer = window.setTimeout(nextClip, 4200);
+    };
+    const nextClip = () => {
         clipIndex = (clipIndex + 1) % clips.length;
-        showClip(clipIndex);
-    }, 4200);
+        showClip();
+    };
+    // Retry within a real gesture when iOS blocks autoplay (e.g. Low Power Mode).
+    document.addEventListener("touchend", playClip, { passive: true });
+    document.addEventListener("click", playClip);
+    document.addEventListener("visibilitychange", showClip);
+    window.addEventListener("pageshow", showClip);
+    onMotionChange(showClip);
+    showClip();
 }
 
 const statement = document.querySelector(".statement");
 const statementImage = document.querySelector(".statement__image");
 
-if (statement && statementImage && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+if (statement && statementImage) {
     let frame = 0;
     const moveStatement = () => {
+        frame = 0;
+        if (motion.matches) {
+            statementImage.style.transform = "none";
+            return;
+        }
         const rect = statement.getBoundingClientRect();
         const view = window.innerHeight || 1;
         const center = rect.top + rect.height / 2 - view / 2;
@@ -102,77 +144,101 @@ if (statement && statementImage && !window.matchMedia("(prefers-reduced-motion: 
     };
     window.addEventListener("scroll", requestMove, { passive: true });
     window.addEventListener("resize", requestMove, { passive: true });
+    onMotionChange(requestMove);
     moveStatement();
 }
 
 const presenceNet = document.querySelector(".presence__net");
 
-if (presenceNet && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+if (presenceNet) {
     const context = presenceNet.getContext("2d");
-    const nodes = Array.from({ length: 36 }, () => ({
-        x: Math.random(),
-        y: Math.random(),
-        vx: (Math.random() - 0.5) * 0.00022,
-        vy: (Math.random() - 0.5) * 0.00018,
-    }));
-    let netFrame = 0;
+    if (context) {
+        const nodes = Array.from({ length: 36 }, () => ({
+            x: Math.random(),
+            y: Math.random(),
+            vx: (Math.random() - 0.5) * 0.00022,
+            vy: (Math.random() - 0.5) * 0.00018,
+        }));
+        let netFrame = 0;
 
-    const drawNet = () => {
-        netFrame = 0;
-        const width = presenceNet.clientWidth;
-        const height = presenceNet.clientHeight;
-        if (!width || !height) return;
-        const ratio = Math.min(window.devicePixelRatio || 1, 2);
-        if (presenceNet.width !== Math.round(width * ratio) || presenceNet.height !== Math.round(height * ratio)) {
-            presenceNet.width = Math.round(width * ratio);
-            presenceNet.height = Math.round(height * ratio);
-        }
-        context.setTransform(ratio, 0, 0, ratio, 0, 0);
-        context.clearRect(0, 0, width, height);
-        nodes.forEach((node) => {
-            node.x += node.vx;
-            node.y += node.vy;
-            if (node.x < 0 || node.x > 1) node.vx *= -1;
-            if (node.y < 0 || node.y > 1) node.vy *= -1;
-        });
-        const reach = Math.min(width, height) * 0.28;
-        context.lineWidth = 1;
-        for (let first = 0; first < nodes.length; first += 1) {
-            for (let second = first + 1; second < nodes.length; second += 1) {
-                const dx = (nodes[first].x - nodes[second].x) * width;
-                const dy = (nodes[first].y - nodes[second].y) * height;
-                const distance = Math.hypot(dx, dy);
-                if (distance > reach) continue;
-                context.strokeStyle = `rgba(176, 198, 230, ${(1 - distance / reach) * 0.42})`;
-                context.beginPath();
-                context.moveTo(nodes[first].x * width, nodes[first].y * height);
-                context.lineTo(nodes[second].x * width, nodes[second].y * height);
-                context.stroke();
+        const drawNet = () => {
+            const width = presenceNet.parentElement.clientWidth;
+            const height = presenceNet.parentElement.clientHeight;
+            if (!width || !height) return;
+            // Bound the backing store on high-DPI iPhones, including tall mobile layouts.
+            const ratio = Math.min(window.devicePixelRatio || 1, 2, 4096 / width, 4096 / height,
+                Math.sqrt(4000000 / (width * height)));
+            if (presenceNet.width !== Math.round(width * ratio) || presenceNet.height !== Math.round(height * ratio)) {
+                presenceNet.width = Math.round(width * ratio);
+                presenceNet.height = Math.round(height * ratio);
             }
-        }
-        nodes.forEach((node) => {
-            context.fillStyle = "rgba(226, 234, 244, .9)";
-            context.beginPath();
-            context.arc(node.x * width, node.y * height, 2.2, 0, Math.PI * 2);
-            context.fill();
-        });
-    };
+            context.setTransform(ratio, 0, 0, ratio, 0, 0);
+            context.clearRect(0, 0, width, height);
+            if (!motion.matches) nodes.forEach((node) => {
+                node.x += node.vx;
+                node.y += node.vy;
+                if (node.x < 0 || node.x > 1) node.vx *= -1;
+                if (node.y < 0 || node.y > 1) node.vy *= -1;
+            });
+            const reach = Math.max(180, Math.min(width, height) * 0.28);
+            context.lineWidth = 1;
+            for (let first = 0; first < nodes.length; first += 1) {
+                for (let second = first + 1; second < nodes.length; second += 1) {
+                    const dx = (nodes[first].x - nodes[second].x) * width;
+                    const dy = (nodes[first].y - nodes[second].y) * height;
+                    const distance = Math.hypot(dx, dy);
+                    if (distance > reach) continue;
+                    context.strokeStyle = `rgba(176, 198, 230, ${(1 - distance / reach) * 0.42})`;
+                    context.beginPath();
+                    context.moveTo(nodes[first].x * width, nodes[first].y * height);
+                    context.lineTo(nodes[second].x * width, nodes[second].y * height);
+                    context.stroke();
+                }
+            }
+            nodes.forEach((node) => {
+                context.fillStyle = "rgba(226, 234, 244, .9)";
+                context.beginPath();
+                context.arc(node.x * width, node.y * height, 2.2, 0, Math.PI * 2);
+                context.fill();
+            });
+            presenceNet.parentElement.classList.add("presence--net-ready");
+        };
 
-    const requestNet = () => {
-        if (netFrame) return;
-        netFrame = window.requestAnimationFrame(drawNet);
+        let netVisible = true;
+        const loopNet = () => {
+            netFrame = 0;
+            if (document.hidden || !netVisible) return;
+            drawNet();
+            if (!motion.matches) netFrame = window.requestAnimationFrame(loopNet);
+        };
+        const refreshNet = () => {
+            window.cancelAnimationFrame(netFrame);
+            loopNet();
+        };
+        if ("IntersectionObserver" in window) {
+            const watchNet = new IntersectionObserver((entries) => {
+                netVisible = entries.some((entry) => entry.isIntersecting);
+                refreshNet();
+            });
+            watchNet.observe(presenceNet.parentElement);
+        }
+        window.addEventListener("resize", refreshNet, { passive: true });
+        document.addEventListener("visibilitychange", refreshNet);
+        onMotionChange(refreshNet);
+        refreshNet();
+    }
+}
+
+// Use actual stage dimensions; cqi/cqh are unavailable before Safari 16.
+const mapStage = document.querySelector(".tr-stage");
+const mapZoom = document.querySelector(".tr-zoom");
+if (mapStage && mapZoom) {
+    const sizeMap = () => {
+        mapZoom.style.width = `${Math.min(mapStage.clientWidth, mapStage.clientHeight * 1000 / 371)}px`;
     };
-    const watchNet = new IntersectionObserver((entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) requestNet();
-    });
-    watchNet.observe(presenceNet.parentElement);
-    const loopNet = () => {
-        const box = presenceNet.getBoundingClientRect();
-        const visible = box.bottom > 0 && box.top < window.innerHeight;
-        if (visible) drawNet();
-        window.requestAnimationFrame(loopNet);
-    };
-    loopNet();
+    if ("ResizeObserver" in window) new ResizeObserver(sizeMap).observe(mapStage);
+    window.addEventListener("resize", sizeMap, { passive: true });
+    sizeMap();
 }
 
 const officeToggles = [...document.querySelectorAll(".office-toggle")];
@@ -226,7 +292,6 @@ if (hero) {
         { story: "3", word: "c", hold: 1700 },
         { story: "4", word: null, hold: 4200 },
     ];
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const showStory = (name) => {
         stories.forEach((story) => {
@@ -258,11 +323,18 @@ if (hero) {
         });
     };
 
-    if (reduced) {
-        showStory("4");
-        if (meter) meter.style.transform = "scaleX(1)";
-    } else {
-        let beat = 0;
+    let storyTimer = 0;
+    let beat = 0;
+    const restartStories = () => {
+        window.clearTimeout(storyTimer);
+        if (motion.matches) {
+            showStory("4");
+            showWord(null);
+            if (meter) meter.style.transform = "scaleX(1)";
+            return;
+        }
+        if (document.hidden) return;
+        beat = 0;
         const play = () => {
             const current = beats[beat];
             if (meter && current.story === "1") {
@@ -279,8 +351,11 @@ if (hero) {
             showWord(current.word);
             const hold = current.hold;
             beat = (beat + 1) % beats.length;
-            window.setTimeout(play, hold);
+            storyTimer = window.setTimeout(play, hold);
         };
         play();
-    }
+    };
+    onMotionChange(restartStories);
+    document.addEventListener("visibilitychange", restartStories);
+    restartStories();
 }
