@@ -42,16 +42,16 @@ require __DIR__ . '/includes/header.php';
         <section class="hero" id="hero">
             <div class="hero__stage">
                 <div class="hero__media" aria-hidden="true">
-                    <video class="hero__clip is-on" muted playsinline poster="assets/video/hero-poster.jpg">
+                    <video class="hero__clip" autoplay muted playsinline preload="metadata" poster="assets/video/hero-poster.jpg">
                         <source src="assets/video/hero.mp4" type="video/mp4">
                     </video>
-                    <video class="hero__clip" muted playsinline>
+                    <video class="hero__clip" muted playsinline preload="metadata" poster="assets/video/hero-poster.jpg">
                         <source src="assets/video/shot-kaynak.mp4" type="video/mp4">
                     </video>
-                    <video class="hero__clip" muted playsinline>
+                    <video class="hero__clip" muted playsinline preload="metadata" poster="assets/video/hero-poster.jpg">
                         <source src="assets/video/shot-boru.mp4" type="video/mp4">
                     </video>
-                    <video class="hero__clip" muted playsinline>
+                    <video class="hero__clip" muted playsinline preload="metadata" poster="assets/video/hero-poster.jpg">
                         <source src="assets/video/shot-makine.mp4" type="video/mp4">
                     </video>
                 </div>
@@ -73,7 +73,7 @@ require __DIR__ . '/includes/header.php';
                                 <span class="story-word" data-word="c">süreklilik</span>
                             </span>
                         </div>
-                        <h1 class="story story-4" data-story="4">
+                        <h1 class="story story-4 is-on" data-story="4">
                             <span class="line"><span>Riskin bir adım</span></span>
                             <span class="line"><span><em>önünde olun</em></span></span>
                         </h1>
@@ -197,7 +197,7 @@ require __DIR__ . '/includes/header.php';
             <div class="presence__map reveal">
                     <div class="tr-stage">
                     <div class="tr-zoom">
-                    <svg class="tr-map" viewBox="0 0 1000 371" role="img" aria-label="Türkiye haritası">
+                    <svg class="tr-map" xmlns="http://www.w3.org/2000/svg" width="1000" height="371" viewBox="0 0 1000 371" role="img" aria-label="Türkiye haritası">
                         <defs>
                             <linearGradient id="tr-fill" x1="0" y1="0" x2="1" y2="1">
                                 <stop offset="0" stop-color="#1d5cad"/>
